@@ -69,13 +69,16 @@ if (models.plage_horaire && models.terrain) {
 // Add other associations as needed
 // Example: If you have reservations related to plage_horaire
 if (models.reservation && models.plage_horaire) {
+  // Correct association: reservation.id_plage_horaire -> plage_horaire.id
   models.reservation.belongsTo(models.plage_horaire, {
-    foreignKey: 'id',
+    foreignKey: 'id_plage_horaire',
+    targetKey: 'id',
     as: 'plageHoraire'
   });
   
   models.plage_horaire.hasMany(models.reservation, {
-    foreignKey: 'id',
+    foreignKey: 'id_plage_horaire',
+    sourceKey: 'id',
     as: 'reservations'
   });
   
@@ -159,10 +162,14 @@ const reservationController = ReservationController(reservationService);
 const app = express();
 app.use(helmet());
 app.use(secureLogger); // Only logs for admin/developer
-app.use(security.ipBlocker);
-app.use(security.maintenanceMode);
 
 // ✅ IMPROVED CORS CONFIGURATION (function-based origin to support lists)
+// Read comma-separated origins from env (e.g., "https://www.example.com,https://admin.example.com")
+const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 const allowedOrigins = [
   'http://localhost:300',
   'http://localhost:3001',
@@ -171,6 +178,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   process.env.FRONTEND_URL,
+  ...envAllowedOrigins,
 ].filter(Boolean);
 
 const corsOptions = {
@@ -201,7 +209,19 @@ const corsOptions = {
   optionsSuccessStatus: 204, // explicitly return 204 for successful preflight
 };
 
+// Place CORS before any blocking/security middleware to ensure preflight succeeds
 app.use(cors(corsOptions));
+// Explicitly handle preflight requests without wildcard path (Express 5 safe)
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return cors(corsOptions)(req, res, () => res.sendStatus(204));
+  }
+  next();
+});
+
+// Security middlewares (run after CORS so responses carry CORS headers)
+app.use(security.ipBlocker);
+app.use(security.maintenanceMode);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -263,8 +283,9 @@ app.use('/api/admin', authenticateToken, adminRoutes(models));
 // Static file serving (public)
 app.use('/uploads', express.static('uploads'));
 
-// ✅ 404 HANDLER - FIXED FOR EXPRESS 5.x
-app.use('/*catchall', (req, res) => {
+// ✅ 404 HANDLER - Express 5.x compatible
+// Use a fallback middleware without a path to avoid path-to-regexp issues
+app.use((req, res) => {
   res.status(404).json({ 
     error: 'Route non trouvée',
     message: `La route ${req.method} ${req.originalUrl} n'existe pas`,

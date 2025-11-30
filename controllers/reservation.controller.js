@@ -17,6 +17,12 @@ export default function ReservationController(service) {
         errorResponse.title = 'Limite de réservations atteinte';
         errorResponse.severity = 'warning';
         errorResponse.action = 'VIEW_RESERVATIONS';
+      } else if (err.message.includes('Vous avez déjà une réservation pour cette plage horaire le même jour')) {
+        // Double booking on same day and time slot
+        errorResponse.type = 'DOUBLE_BOOKING';
+        errorResponse.title = 'Réservation en double';
+        errorResponse.severity = 'warning';
+        errorResponse.action = 'VIEW_RESERVATIONS';
       }
       
       res.status(400).json(errorResponse);

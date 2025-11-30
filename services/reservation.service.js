@@ -9,6 +9,18 @@ export default function ReservationService(models) {
     const plage = await models.plage_horaire.findByPk(data.id_plage_horaire);
     if (!plage) throw new Error("Plage horaire not found");
 
+    // Prevent double booking: the same user cannot reserve the same time slot on the same day
+    const existingSameSlotReservation = await models.reservation.findOne({
+      where: {
+        id_utilisateur: data.id_utilisateur,
+        id_plage_horaire: data.id_plage_horaire,
+        date: data.date,
+      }
+    });
+    if (existingSameSlotReservation) {
+      throw new Error('Vous avez déjà une réservation pour cette plage horaire le même jour.');
+    }
+
     // Check reservation limits for specific date ranges
     const reservationDate = new Date(data.date);
     const year = reservationDate.getFullYear();

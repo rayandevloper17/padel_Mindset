@@ -32,10 +32,6 @@ export default function(sequelize) {
           key: 'id'
         }
       },
-    id_plage_horaire: {
-      type: DataTypes.BIGINT,
-      allowNull: false
-    },
     date: {
       type: DataTypes.DATEONLY,
       allowNull: false
@@ -94,8 +90,6 @@ export default function(sequelize) {
       allowNull: true,
     },
     // Match score fields - using lowercase to match database schema
-    p1A: { type: DataTypes.TEXT, allowNull: true },
-    p2A: { type: DataTypes.TEXT, allowNull: true },
     p1A: { type: DataTypes.TEXT, allowNull: true },
     p2A: { type: DataTypes.TEXT, allowNull: true },
     Set1A: { type: DataTypes.INTEGER, allowNull: true },
