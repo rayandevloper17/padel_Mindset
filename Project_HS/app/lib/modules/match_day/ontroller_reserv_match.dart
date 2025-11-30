@@ -19,8 +19,6 @@ class ReservationMatchController extends GetxController {
   final userRatings =
       <String, List<UserRating>>{}.obs; // Track user ratings by user ID
   final isRatingLoading = false.obs;
-  // Hydrated time slots for reservations whose plageHoraire is missing in history
-  final hydratedSlots = <String, PlageHoraire>{}.obs; // key: reservationId
   // History-specific flags
   final historyErrorMessage = ''.obs;
   final historyEmpty = false.obs;
@@ -34,7 +32,7 @@ class ReservationMatchController extends GetxController {
     final uid = await storage.read(key: 'userId');
     currentUserId.value = uid ?? '';
 
-    // await fetchReservations();
+    await fetchReservations();
   }
 
   // NEW: Fetch only available reservations (not full)
@@ -55,6 +53,9 @@ class ReservationMatchController extends GetxController {
             resp.data is List
                 ? (resp.data as List)
                 : (resp.data is String ? json.decode(resp.data as String) : []);
+        print(
+          '✅ Successfully parsed ${jsonData.length} available reservations',
+        );
 
         final newReservations =
             jsonData.map((data) => Reservation.fromJson(data)).toList();
@@ -107,6 +108,9 @@ class ReservationMatchController extends GetxController {
             resp.data is List
                 ? (resp.data as List)
                 : (resp.data is String ? json.decode(resp.data as String) : []);
+        print(
+          '✅ Successfully parsed ${jsonData.length} available reservations for date $date',
+        );
 
         final newReservations =
             jsonData.map((data) => Reservation.fromJson(data)).toList();
@@ -184,72 +188,73 @@ class ReservationMatchController extends GetxController {
     }
   }
 
-  // Future<void> fetchReservations() async {
-  //   if (isLoading.value) return;
+  Future<void> fetchReservations() async {
+    if (isLoading.value) return;
 
-  //   print('🔄 Starting fetchReservations...');
-  //   isLoading.value = true;
+    print('🔄 Starting fetchReservations...');
+    isLoading.value = true;
 
-  //   try {
-  //     // Use ApiService (Dio) so 401s auto-refresh and retry
-  //     print('📡 Making API call to fetch reservations via ApiService...');
-  //     final resp = await _apiService.get('/reservations');
+    try {
+      // Use ApiService (Dio) so 401s auto-refresh and retry
+      print('📡 Making API call to fetch reservations via ApiService...');
+      final resp = await _apiService.get('/reservations');
 
-  //     print('📊 Reservations API Response:');
-  //     print('   Status Code: ${resp.statusCode}');
-  //     try {
-  //       print('   Response Body: ${resp.data}');
-  //     } catch (_) {}
+      print('📊 Reservations API Response:');
+      print('   Status Code: ${resp.statusCode}');
+      try {
+        print('   Response Body: ${resp.data}');
+      } catch (_) {}
 
-  //     if (resp.statusCode == 200) {
-  //       final List jsonData =
-  //           resp.data is List
-  //               ? (resp.data as List)
-  //               : (resp.data is String ? json.decode(resp.data as String) : []);
+      if (resp.statusCode == 200) {
+        final List jsonData =
+            resp.data is List
+                ? (resp.data as List)
+                : (resp.data is String ? json.decode(resp.data as String) : []);
+        print('✅ Successfully parsed ${jsonData.length} reservations');
 
-  //       final newReservations =
-  //           jsonData.map((data) => Reservation.fromJson(data)).toList();
+        final newReservations =
+            jsonData.map((data) => Reservation.fromJson(data)).toList();
 
-  //       if (!isClosed) {
-  //         reservations.assignAll(newReservations);
-  //         print(
-  //           '💾 Reservations stored in controller: ${reservations.length} items',
-  //         );
+        if (!isClosed) {
+          reservations.assignAll(newReservations);
+          print(
+            '💾 Reservations stored in controller: ${reservations.length} items',
+          );
 
-  //         // Print reservation IDs for debugging
-  //         for (int i = 0; i < reservations.length; i++) {
-  //           print('   Reservation $i: ID = ${reservations[i].id}');
-  //         }
-  //       }
+          // Print reservation IDs for debugging
+          for (int i = 0; i < reservations.length; i++) {
+            print('   Reservation $i: ID = ${reservations[i].id}');
+          }
+        }
 
-  //       // Mark joined status for reservations
-  //       for (final reservation in reservations) {
-  //         await fetchParticipantsForReservation(reservation.id);
-  //         final participants = reservationParticipants[reservation.id] ?? [];
-  //         final joined = participants.any(
-  //           (p) => p.idUtilisateur == currentUserId.value,
-  //         );
-  //         joinedMatches[reservation.id] = joined;
-  //       }
+        // Mark joined status for reservations
+        for (final reservation in reservations) {
+          await fetchParticipantsForReservation(reservation.id);
+          final participants = reservationParticipants[reservation.id] ?? [];
+          final joined = participants.any(
+            (p) => p.idUtilisateur == currentUserId.value,
+          );
+          joinedMatches[reservation.id] = joined;
+        }
 
-  //       print('✅ fetchReservations completed. Loading state: false');
-  //     } else if (resp.statusCode == 401) {
-  //       // ApiService will attempt refresh automatically; if still 401, user will be redirected
-  //       print(
-  //         '❌ Unauthorized. Token may be expired. Refresh attempted by ApiService.',
-  //       );
-  //     } else {
-  //       print('❌ Error: Server returned status code ${resp.statusCode}');
-  //       try {
-  //         print('   Response body: ${resp.data}');
-  //       } catch (_) {}
-  //     }
-  //   } catch (e) {
-  //     print('💥 Error fetching reservations: $e');
-  //   } finally {
-  //     isLoading.value = false;
-  //   }
-  // }
+        print('✅ fetchReservations completed. Loading state: false');
+      } else if (resp.statusCode == 401) {
+        // ApiService will attempt refresh automatically; if still 401, user will be redirected
+        print(
+          '❌ Unauthorized. Token may be expired. Refresh attempted by ApiService.',
+        );
+      } else {
+        print('❌ Error: Server returned status code ${resp.statusCode}');
+        try {
+          print('   Response body: ${resp.data}');
+        } catch (_) {}
+      }
+    } catch (e) {
+      print('💥 Error fetching reservations: $e');
+    } finally {
+      isLoading.value = false;
+    }
+  }
 
   /// Fetch authenticated user's reservation history
   Future<void> fetchUserReservationHistory() async {
@@ -265,17 +270,6 @@ class ReservationMatchController extends GetxController {
             resp.data is List
                 ? (resp.data as List)
                 : (resp.data is String ? json.decode(resp.data as String) : []);
-
-        // Pretty-print the entire raw JSON list to console for inspection
-        try {
-          final pretty = const JsonEncoder.withIndent('  ').convert(jsonData);
-          print('\n================= 📜 USER RESERVATION HISTORY (RAW JSON) =================');
-          print(pretty);
-          print('======================================================================\n');
-        } catch (e) {
-          print('⚠️ Failed to pretty-print history JSON: $e');
-        }
-
         final newReservations =
             jsonData.map((data) => Reservation.fromJson(data)).toList();
         reservations.assignAll(newReservations);
@@ -283,37 +277,6 @@ class ReservationMatchController extends GetxController {
         await fetchParticipantsForAllReservations(
           await _apiService.getValidAccessToken() ?? '',
         );
-
-        // Proactively hydrate missing plageHoraire for history items
-        final futures = <Future>[];
-        for (final r in reservations) {
-          if (r.plageHoraire == null && r.idPlageHoraire.isNotEmpty) {
-            futures.add(_hydrateSlotForReservation(r));
-          }
-        }
-        if (futures.isNotEmpty) {
-          await Future.wait(futures);
-        }
-
-        // Debug: print effective slot summary after hydration
-        try {
-          print('\n🧠 Effective slots after hydration:');
-          for (final r in reservations) {
-            final ph = r.plageHoraire ?? getHydratedSlotForReservationId(r.id);
-            if (ph != null) {
-              final s = ph.startTime; // no device-local conversion
-              final e = ph.endTime;   // use as-is
-              final start = '${s.hour.toString().padLeft(2, '0')}:${s.minute.toString().padLeft(2, '0')}';
-              final end = '${e.hour.toString().padLeft(2, '0')}:${e.minute.toString().padLeft(2, '0')}';
-              print('   • Reservation ${r.id} ➜ ${start}–${end} (slotId=${ph.id})');
-            } else {
-              print('   • Reservation ${r.id} ➜ no slot (id_plage_horaire=${r.idPlageHoraire})');
-            }
-          }
-          print('✅ Hydration summary printed');
-        } catch (e) {
-          print('⚠️ Failed to print hydration summary: $e');
-        }
       } else if (resp.statusCode == 404) {
         historyEmpty.value = true;
         reservations.assignAll([]);
@@ -333,56 +296,6 @@ class ReservationMatchController extends GetxController {
     }
   }
 
-  /// Public helper: ensure reservation has a hydrated plageHoraire.
-  /// Does nothing if already present.
-  Future<void> ensurePlageHoraireHydrated(Reservation reservation) async {
-    if (reservation.plageHoraire != null) return;
-    if (hydratedSlots.containsKey(reservation.id)) return;
-    await _hydrateSlotForReservation(reservation);
-  }
-
-  /// Returns the effective slot for a reservation (inline or hydrated)
-  PlageHoraire? getHydratedSlotForReservationId(String reservationId) {
-    return hydratedSlots[reservationId];
-  }
-
-  /// Internal: hydrate and cache plageHoraire for a reservation
-  Future<void> _hydrateSlotForReservation(Reservation r) async {
-    try {
-      final ph = await fetchPlageHoraireById(r.idPlageHoraire);
-      if (ph != null) {
-        hydratedSlots[r.id] = ph;
-      }
-    } catch (e) {
-      print('⚠️ Failed to hydrate plageHoraire for reservation ${r.id}: $e');
-    }
-  }
-
-  /// Fetch plageHoraire by id from backend and parse to local-time model
-  Future<PlageHoraire?> fetchPlageHoraireById(String id) async {
-    try {
-      final resp = await _apiService.get('/plage-horaire/$id');
-      if (resp.statusCode == 200) {
-        // The backend wraps result in { success, data }
-        final Map<String, dynamic> decoded =
-            (resp.data is Map<String, dynamic>)
-                ? (resp.data as Map<String, dynamic>)
-                : (resp.data is String
-                    ? json.decode(resp.data as String)
-                    : {});
-        final data = decoded['data'] ?? decoded; // be tolerant to shape
-        if (data is Map<String, dynamic>) {
-          return PlageHoraire.fromJson(data);
-        }
-      } else {
-        print('❌ Failed to fetch plageHoraire $id: ${resp.statusCode}');
-      }
-    } catch (e) {
-      print('💥 Exception fetching plageHoraire $id: $e');
-    }
-    return null;
-  }
-
   /// Search reservation by code (calls backend /api/reservations/code/:code)
   /// Optional: restrict results to a match type via [expectedTyper]
   /// typer: 1 => Private, 2 => Open
@@ -399,9 +312,7 @@ class ReservationMatchController extends GetxController {
 
     isSearching.value = true;
     try {
-      print(
-        '🔎 Searching reservation by code "$query" (expectedTyper=$expectedTyper)...',
-      );
+      print('🔎 Searching reservation by code "$query" (expectedTyper=$expectedTyper)...');
       final resp = await _apiService.get('/reservations/code/$query');
       print('🔎 Search response status: ${resp.statusCode}');
 
@@ -411,22 +322,15 @@ class ReservationMatchController extends GetxController {
                 ? (resp.data as Map<String, dynamic>)
                 : (resp.data is String ? json.decode(resp.data as String) : {});
         final found = Reservation.fromJson(data);
-        print(
-          '🔍 Found reservation: id=${found.id}, typer=${found.typer}, etat=${found.etat}, coder=${found.coder}',
-        );
+        print('🔍 Found reservation: id=${found.id}, typer=${found.typer}, etat=${found.etat}, coder=${found.coder}');
 
-        final matchesType =
-            expectedTyper == null || found.typer == expectedTyper;
+        final matchesType = expectedTyper == null || found.typer == expectedTyper;
         // For open matches, we keep a stricter status check to avoid showing closed items.
         // For private matches, accept any status; the page UI handles joinability.
         bool isAcceptable;
         if (expectedTyper == 2) {
           final et = (found.etat ?? '').toString().toLowerCase();
-          isAcceptable =
-              et.contains('attente') ||
-              et.contains('pending') ||
-              et == '1' ||
-              et.contains('waiting');
+          isAcceptable = et.contains('attente') || et.contains('pending') || et == '1' || et.contains('waiting');
         } else {
           isAcceptable = true;
         }
@@ -438,9 +342,7 @@ class ReservationMatchController extends GetxController {
           await fetchParticipantsForReservation(found.id);
           print('✅ Search accepted. Results updated.');
         } else {
-          print(
-            '🚫 Search rejected. Reasons: matchesType=$matchesType, isAcceptable=$isAcceptable',
-          );
+          print('🚫 Search rejected. Reasons: matchesType=$matchesType, isAcceptable=$isAcceptable');
           searchResults.clear();
           searchNotFound.value = true;
         }
@@ -449,9 +351,7 @@ class ReservationMatchController extends GetxController {
         searchResults.clear();
         searchNotFound.value = true;
       } else {
-        print(
-          '⚠️ Unexpected search status: ${resp.statusCode}. Body: ${resp.data}',
-        );
+        print('⚠️ Unexpected search status: ${resp.statusCode}. Body: ${resp.data}');
         searchResults.clear();
         searchNotFound.value = true;
       }
@@ -527,6 +427,7 @@ class ReservationMatchController extends GetxController {
             resp.data is List
                 ? (resp.data as List)
                 : (resp.data is String ? json.decode(resp.data as String) : []);
+        print('✅ Successfully parsed ${jsonData.length} participants');
 
         // Print each participant data for debugging
         for (int i = 0; i < jsonData.length; i++) {
@@ -535,6 +436,7 @@ class ReservationMatchController extends GetxController {
 
         var participants =
             jsonData.map((data) => Participant.fromJson(data)).toList();
+        print('🎯 Converted to ${participants.length} Participant objects');
 
         // Fetch user details for each participant
         final updatedParticipants = <Participant>[];
@@ -669,7 +571,9 @@ class ReservationMatchController extends GetxController {
         return false;
       }
 
-      final participantsUrl = Uri.parse('http://0.0.0.0:300/api/participants');
+      final participantsUrl = Uri.parse(
+        'http://127.0.0.1:300/api/participants',
+      );
       final participantBody = {
         'id_reservation': int.tryParse(reservationId) ?? reservationId,
         'id_utilisateur': int.tryParse(uid) ?? uid,
@@ -721,7 +625,7 @@ class ReservationMatchController extends GetxController {
       }
 
       final participantsUrl = Uri.parse(
-        'http://154.241.84.117:300/api/participants',
+        'http://127.0.0.1:300/api/participants',
       );
       final participantBody = {
         'id_reservation': int.tryParse(reservationId) ?? reservationId,
@@ -1073,50 +977,12 @@ class PlageHoraire {
     required this.terrainId,
   });
 
-  // Convert backend time strings to venue-local wall clock without using device tz
-  static DateTime _parseVenueTime(String raw) {
-    final text = raw.toString().trim();
-    // Fixed venue offset in minutes (e.g., UTC+1 => 60)
-    const int venueUtcOffsetMinutes = 60;
-
-    // HH:mm or HH:mm:ss
-    final hm = RegExp(r'^(\d{2}):(\d{2})(?::(\d{2}))?$');
-    final hmMatch = hm.firstMatch(text);
-    if (hmMatch != null) {
-      final now = DateTime.now();
-      final h = int.parse(hmMatch.group(1)!);
-      final m = int.parse(hmMatch.group(2)!);
-      return DateTime(now.year, now.month, now.day, h, m);
-    }
-
-    // If string carries timezone ('Z' or '+hh:mm'), convert deterministically
-    final hasExplicitTz = text.endsWith('Z') || RegExp(r'[+-]\\d{2}:\\d{2}$').hasMatch(text);
-    if (hasExplicitTz) {
-      try {
-        final dtUtc = DateTime.parse(text).toUtc();
-        final dtVenue = dtUtc.add(Duration(minutes: venueUtcOffsetMinutes));
-        return DateTime(dtVenue.year, dtVenue.month, dtVenue.day, dtVenue.hour, dtVenue.minute);
-      } catch (_) {
-        // Fall through
-      }
-    }
-
-    // ISO without timezone or fallback
-    try {
-      final dt = DateTime.parse(text);
-      return DateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute);
-    } catch (_) {
-      final now = DateTime.now();
-      return DateTime(now.year, now.month, now.day);
-    }
-  }
-
   factory PlageHoraire.fromJson(Map<String, dynamic> json) {
     return PlageHoraire(
       id: json['id'].toString(),
-      // Parse to venue-local clock
-      startTime: _parseVenueTime(json['start_time']),
-      endTime: _parseVenueTime(json['end_time']),
+      // Convert to local time to accurately determine match completion
+      startTime: DateTime.parse(json['start_time']).toLocal(),
+      endTime: DateTime.parse(json['end_time']).toLocal(),
       price: json['price'] ?? 0,
       type: json['type'] ?? 0,
       disponible: json['disponible'] ?? false,

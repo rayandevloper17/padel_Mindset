@@ -5,7 +5,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:app/services/api_service.dart';
-import 'package:app/services/api_service.dart';
 
 // Model class for PlageHoraire
 class PlageHoraire {
@@ -25,86 +24,14 @@ class PlageHoraire {
     required this.terrainId,
   });
 
-  // Parse backend times as venue-local wall clock values, avoiding device tz shifts
-  static DateTime _parseVenueTime(String raw, {DateTime? anchorDate}) {
-    final text = raw.trim();
-
-    // HH:mm or HH:mm:ss
-    final hm = RegExp(r'^(\d{2}):(\d{2})(?::(\d{2}))?$');
-    final hmMatch = hm.firstMatch(text);
-    if (hmMatch != null) {
-      final h = int.parse(hmMatch.group(1)!);
-      final m = int.parse(hmMatch.group(2)!);
-      final anchor = anchorDate ?? DateTime.now();
-      return DateTime(anchor.year, anchor.month, anchor.day, h, m);
-    }
-
-    // If backend sends UTC ('Z') or explicit offset, convert to a fixed venue offset
-    // Adjust this offset to match the club's timezone precisely (e.g., UTC+1 => 60)
-    const int venueUtcOffsetMinutes = 60;
-    final hasExplicitTz = text.endsWith('Z') || RegExp(r'[+-]\\d{2}:\\d{2}$').hasMatch(text);
-    if (hasExplicitTz) {
-      try {
-        final dtUtc = DateTime.parse(text).toUtc();
-        final dtVenue = dtUtc.add(Duration(minutes: venueUtcOffsetMinutes));
-        final y = anchorDate?.year ?? dtVenue.year;
-        final m = anchorDate?.month ?? dtVenue.month;
-        final d = anchorDate?.day ?? dtVenue.day;
-        return DateTime(y, m, d, dtVenue.hour, dtVenue.minute);
-      } catch (_) {
-        // Fall through if parsing fails
-      }
-    }
-
-    // ISO date-time (space or 'T' separator), optional timezone part
-    final iso = RegExp(
-      r'^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?$',
-    );
-    final isoMatch = iso.firstMatch(text);
-    if (isoMatch != null) {
-      final year = int.parse(isoMatch.group(1)!);
-      final month = int.parse(isoMatch.group(2)!);
-      final day = int.parse(isoMatch.group(3)!);
-      final hour = int.parse(isoMatch.group(4)!);
-      final minute = int.parse(isoMatch.group(5)!);
-      if (anchorDate != null) {
-        return DateTime(
-          anchorDate.year,
-          anchorDate.month,
-          anchorDate.day,
-          hour,
-          minute,
-        );
-      }
-      return DateTime(year, month, day, hour, minute);
-    }
-
-    // Fallback: parse then rebuild a naive datetime to drop tz effects
-    try {
-      final dt = DateTime.parse(text);
-      return DateTime(dt.year, dt.month, dt.day, dt.hour, dt.minute);
-    } catch (_) {
-      final now = DateTime.now();
-      return DateTime(now.year, now.month, now.day);
-    }
-  }
-
-  factory PlageHoraire.fromJson(
-    Map<String, dynamic> json, {
-    DateTime? anchorDate,
-  }) {
+  factory PlageHoraire.fromJson(Map<String, dynamic> json) {
     return PlageHoraire(
       json['disponible'] as bool?,
       id: int.parse(json['id'].toString()),
       terrainId: int.parse(json['terrain_id'].toString()),
-      startTime: _parseVenueTime(
-        json['start_time'].toString(),
-        anchorDate: anchorDate,
-      ),
-      endTime: _parseVenueTime(
-        json['end_time'].toString(),
-        anchorDate: anchorDate,
-      ),
+      // Convert to local time for accurate day comparisons
+      startTime: DateTime.parse(json['start_time']).toLocal(),
+      endTime: DateTime.parse(json['end_time']).toLocal(),
       price: double.parse(json['price'].toString()),
     );
   }
@@ -117,16 +44,11 @@ class PlageHoraire {
       'price': price,
     };
   }
-
-  // Helper to create a unique key based on start and end time (ignoring seconds/millis)
-  String get timeSlotKey =>
-      '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}-'
-      '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
 }
 
 // GetX Controller with extensive debugging
 class PlageHoraireController extends GetxController {
-  static const String baseUrl = 'http://0.0.0.0:300/api';
+  static const String baseUrl = 'http://127.0.0.1:300/api';
   final storage = const FlutterSecureStorage();
 
   var plageHoraires = <PlageHoraire>[].obs;
@@ -173,7 +95,7 @@ class PlageHoraireController extends GetxController {
     try {
       // Use selected date or default to today
       final date = selectedDate ?? DateTime.now();
-      final formattedDate = "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+      final formattedDate = date.toIso8601String().split('T')[0];
 
       final resp = await ApiService.instance.get(
         '/plage-horaire/terrain/$terrainId',
@@ -192,10 +114,7 @@ class PlageHoraireController extends GetxController {
         final List<dynamic> data = decoded['data'];
         final total = (decoded['count'] ?? data.length);
 
-        final mapped =
-            data
-                .map((item) => PlageHoraire.fromJson(item, anchorDate: date))
-                .toList();
+        final mapped = data.map((item) => PlageHoraire.fromJson(item)).toList();
 
         // Filtrer les créneaux pour la date sélectionnée et la disponibilité
         final filtered =
@@ -210,20 +129,13 @@ class PlageHoraireController extends GetxController {
               return (horaire.disponible ?? false) && isSameDate;
             }).toList();
 
-        // Remove duplicates based on timeSlotKey
-        final unique = <String, PlageHoraire>{};
-        for (final h in filtered) {
-          unique[h.timeSlotKey] = h;
-        }
-        final deduped = unique.values.toList();
-
         // Ne pas afficher de créneaux hors date sélectionnée
-        plageHoraires.value = deduped;
+        plageHoraires.value = filtered;
         errorMessage.value =
-            deduped.isEmpty ? 'Aucun créneau disponible pour cette date.' : '';
+            filtered.isEmpty ? 'Aucun créneau disponible pour cette date.' : '';
 
         print(
-          '✅ Loaded ${plageHoraires.length} slots (filtered=${filtered.length}, unique=${deduped.length}, total=${total}) for $formattedDate',
+          '✅ Loaded ${plageHoraires.length} slots (filtered=${filtered.length}, total=${total}) for $formattedDate',
         );
       } else {
         errorMessage.value = 'Échec du chargement des créneaux';
@@ -261,18 +173,8 @@ class PlageHoraireController extends GetxController {
                   : Map<String, dynamic>.from(resp.data as Map);
           final List<dynamic> data = decoded['data'];
 
-          final mapped = data
-              .map((item) => PlageHoraire.fromJson(item))
-              .toList();
-
-          // Remove duplicates based on timeSlotKey
-          final unique = <String, PlageHoraire>{};
-          for (final h in mapped) {
-            unique[h.timeSlotKey] = h;
-          }
-          final deduped = unique.values.toList();
-
-          plageHoraires.value = deduped;
+          plageHoraires.value =
+              data.map((item) => PlageHoraire.fromJson(item)).toList();
           print('✅ Data loaded successfully. Total: ${plageHoraires.length}');
           if (plageHoraires.isNotEmpty) {
             print('🔍 First item: ${plageHoraires.first.toJson()}');
