@@ -1,12 +1,11 @@
 /**
- * Rating Calculation System for Padel Matches - CORRECTED VERSION
+ * Rating Calculation System for Padel Matches - ACTUALLY CORRECT VERSION
  * 
  * This service calculates the new rating (Rn) for players after a match is validated.
  * 
- * ERRORS FIXED:
- * ❌ ERROR 1: Points 0 was 100.00 → ✅ FIXED: Should be 97.37
- * ❌ ERROR 2: Points 1 was 97.37 → ✅ FIXED: Should be 94.74 
- * ❌ ERROR 3: All subsequent points were shifted → ✅ FIXED: Corrected all values
+ * UNDERSTANDING THE LOGIC:
+ * - More points scored = Lower percentage = BIGGER rating gain
+ * - Fewer points scored = Higher percentage = SMALLER rating gain
  */
 
 // TABLE 1: Rating difference (X) to Expected Win Value (W)
@@ -34,29 +33,30 @@ const RATING_DIFF_TABLE = [
     { min: -3.5, max: -0.96, W: 2.8 }
 ];
 
-// TABLE 2: Points to adjustment percentage
-// ✅ CORRECTED - Based on Image 2 exact values
+// TABLE 2: Points scored to adjustment percentage
+// ✅ CORRECT - Based on Image 2
+// Lower percentage = Better performance = More rating gain
 const POINTS_ADJUSTMENT = {
-    0: 97.37,   // ❌ WAS: 100.00 (WRONG!)
-    1: 94.74,   // ❌ WAS: 97.37 (shifted)
-    2: 92.11,   // ❌ WAS: 94.74 (shifted)
-    3: 89.47,   // ❌ WAS: 92.11 (shifted)
-    4: 86.84,   // ❌ WAS: 89.47 (shifted)
-    5: 84.21,   // ❌ WAS: 86.84 (shifted)
-    6: 81.58,   // ❌ WAS: 84.21 (shifted)
-    7: 78.95,   // ❌ WAS: 81.58 (shifted)
-    8: 76.32,   // ❌ WAS: 78.95 (shifted)
-    9: 73.68,   // ❌ WAS: 76.32 (shifted)
-    10: 71.05,  // ❌ WAS: 73.68 (shifted)
-    11: 68.42,  // ❌ WAS: 71.05 (shifted)
-    12: 65.79,  // ❌ WAS: 68.42 (shifted)
-    13: 63.16,  // ❌ WAS: 65.79 (shifted)
-    14: 60.53,  // ❌ WAS: 63.16 (shifted)
-    15: 57.89,  // ❌ WAS: 60.53 (shifted)
-    16: 55.26,  // ❌ WAS: 57.89 (shifted)
-    17: 52.63,  // ❌ WAS: 55.26 (shifted)
-    18: 50.00,  // ❌ WAS: 52.63 (shifted)
-    19: 50      // ❌ WAS: 50.00 (but was missing from table)
+    0: 100,     // ✅ 0 points = 100% (no rating change from base)
+    1: 97.37,   // ✅ Percentage decreases as points increase
+    2: 94.74,
+    3: 92.11,
+    4: 89.47,
+    5: 86.84,
+    6: 84.21,
+    7: 81.58,
+    8: 78.95,
+    9: 76.32,
+    10: 73.68,  // ✅ CORRECT - 10 maps to 73.68
+    11: 71.05,
+    12: 68.42,
+    13: 65.79,
+    14: 63.16,
+    15: 60.53,
+    16: 57.89,
+    17: 55.26,
+    18: 52.63,
+    19: 50.00   // ✅ 19 points = 50% (maximum rating gain shown)
 };
 
 /**
@@ -82,18 +82,29 @@ const getAdjustmentPercentage = (pointsScored) => {
         return POINTS_ADJUSTMENT[pointsScored];
     }
     
-    // For scores > 19, use 50% (last value in table)
+    // For scores > 19, continue decreasing or use 50%
     if (pointsScored > 19) {
-        return 50;
+        // Continue pattern: decrease by ~2.63 per point
+        const decrease = 2.63;
+        return Math.max(0, 50 - (pointsScored - 19) * decrease);
     }
     
-    return 97.37; // ✅ CORRECTED: default for 0 points
+    return 100; // default for 0 points
 };
 
 /**
  * Calculate new rating after a validated match
  * 
  * @param {Object} matchData - Match information
+ * @param {number} matchData.playerRating - Current rating of the player (Ra) [0.5-7]
+ * @param {number} matchData.teammateRating - Rating of teammate (Rc) [0.5-7]
+ * @param {number} matchData.adversary1Rating - Rating of adversary 1 [0.5-7]
+ * @param {number} matchData.adversary2Rating - Rating of adversary 2 [0.5-7]
+ * @param {number} matchData.pointsScored - Points scored by player's team
+ * @param {number} matchData.teammateReliability - Reliability of teammate (Fc) [0-1]
+ * @param {number} matchData.adversary1Reliability - Reliability of adversary 1 [0-1]
+ * @param {number} matchData.adversary2Reliability - Reliability of adversary 2 [0-1]
+ * @returns {number} New rating (Rn) [0.5-7]
  */
 const calculateNewRating = (matchData) => {
     const {

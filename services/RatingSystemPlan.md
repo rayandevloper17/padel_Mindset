@@ -42,10 +42,10 @@ Calculate the percentage of points/games conceded based on the **Penalty Table**
 $Y = W \times \text{Percentage}$
 
 *Example Mapping (0-19 points):*
-- $0 \rightarrow 97.37\%$
-- $1 \rightarrow 94.74\%$
-- $10 \rightarrow 71.05\%$
-- $18 \rightarrow 50.00\%$
+- $0 \rightarrow 100.00\%$
+- $1 \rightarrow 97.37\%$
+- $10 \rightarrow 73.68\%$
+- $18 \rightarrow 52.63\%$
 - $19 \rightarrow 50.00\%$
 
 ### Step 4: Net Gain ($Z$)
