@@ -77,7 +77,8 @@ export default (models) => {
           nom: user.nom,
           prenom: user.prenom,
           mainprefere: user.mainprefere,
-          displayQ: user.displayQ
+          displayQ: user.displayQ,
+          fiability: user.fiability
         });
       } catch (err) {
         next(err);

@@ -97,6 +97,11 @@ export default function (sequelize) {
     date_naissance: {
       type: DataTypes.DATE,
       allowNull: true
+    }, 
+    fiability: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 20
     }
   }, {
     sequelize,
