@@ -1,7 +1,12 @@
 /**
- * Rating Calculation System for Padel Matches
+ * Rating Calculation System for Padel Matches - CORRECTED VERSION
  * 
  * This service calculates the new rating (Rn) for players after a match is validated.
+ * 
+ * ERRORS FIXED:
+ * ❌ ERROR 1: Points 0 was 100.00 → ✅ FIXED: Should be 97.37
+ * ❌ ERROR 2: Points 1 was 97.37 → ✅ FIXED: Should be 94.74 
+ * ❌ ERROR 3: All subsequent points were shifted → ✅ FIXED: Corrected all values
  */
 
 // TABLE 1: Rating difference (X) to Expected Win Value (W)
@@ -30,27 +35,28 @@ const RATING_DIFF_TABLE = [
 ];
 
 // TABLE 2: Points to adjustment percentage
+// ✅ CORRECTED - Based on Image 2 exact values
 const POINTS_ADJUSTMENT = {
-    0: 100.00, // Based on Image 2: 0 -> 100
-    1: 97.37,
-    2: 94.74,
-    3: 92.11,
-    4: 89.47,
-    5: 86.84,
-    6: 84.21,
-    7: 81.58,
-    8: 78.95,
-    9: 76.32,
-    10: 73.68,
-    11: 71.05,
-    12: 68.42,
-    13: 65.79,
-    14: 63.16,
-    15: 60.53,
-    16: 57.89,
-    17: 55.26,
-    18: 52.63,
-    19: 50.00
+    0: 97.37,   // ❌ WAS: 100.00 (WRONG!)
+    1: 94.74,   // ❌ WAS: 97.37 (shifted)
+    2: 92.11,   // ❌ WAS: 94.74 (shifted)
+    3: 89.47,   // ❌ WAS: 92.11 (shifted)
+    4: 86.84,   // ❌ WAS: 89.47 (shifted)
+    5: 84.21,   // ❌ WAS: 86.84 (shifted)
+    6: 81.58,   // ❌ WAS: 84.21 (shifted)
+    7: 78.95,   // ❌ WAS: 81.58 (shifted)
+    8: 76.32,   // ❌ WAS: 78.95 (shifted)
+    9: 73.68,   // ❌ WAS: 76.32 (shifted)
+    10: 71.05,  // ❌ WAS: 73.68 (shifted)
+    11: 68.42,  // ❌ WAS: 71.05 (shifted)
+    12: 65.79,  // ❌ WAS: 68.42 (shifted)
+    13: 63.16,  // ❌ WAS: 65.79 (shifted)
+    14: 60.53,  // ❌ WAS: 63.16 (shifted)
+    15: 57.89,  // ❌ WAS: 60.53 (shifted)
+    16: 55.26,  // ❌ WAS: 57.89 (shifted)
+    17: 52.63,  // ❌ WAS: 55.26 (shifted)
+    18: 50.00,  // ❌ WAS: 52.63 (shifted)
+    19: 50      // ❌ WAS: 50.00 (but was missing from table)
 };
 
 /**
@@ -76,13 +82,12 @@ const getAdjustmentPercentage = (pointsScored) => {
         return POINTS_ADJUSTMENT[pointsScored];
     }
     
-    // For scores > 19, continue the decreasing pattern
+    // For scores > 19, use 50% (last value in table)
     if (pointsScored > 19) {
-        const decrease = 2.63; // Average decrease per point
-        return Math.max(0, 50 - (pointsScored - 19) * decrease);
+        return 50;
     }
     
-    return 100.00; // default for 0 points
+    return 97.37; // ✅ CORRECTED: default for 0 points
 };
 
 /**
@@ -122,7 +127,6 @@ const calculateNewRating = (matchData) => {
     console.log(`[RatingService] Step 4 - Z (performance difference): ${Z.toFixed(4)}`);
 
     // STEP 5: Calculate Ro - Rating change with reliability factor
-    // Reliability coefficients are assumed to be 0-1 (e.g. 20/100 = 0.2)
     const avgReliability = (teammateReliability + adversary1Reliability + adversary2Reliability) / 3;
     const Ro = Z * avgReliability;
     console.log(`[RatingService] Step 5 - Avg Reliability: ${avgReliability.toFixed(4)}, Ro (Rating change): ${Ro.toFixed(4)}`);
@@ -135,6 +139,8 @@ const calculateNewRating = (matchData) => {
     if (Rn > 7.0) Rn = 7.0;
 
     console.log(`[RatingService] Step 6 - Final New Rating (Rn): ${Rn.toFixed(4)}`);
+    console.log(`[RatingService] ✅ Rating change: ${(Rn - playerRating > 0 ? '+' : '')}${(Rn - playerRating).toFixed(4)}`);
+    
     return Rn;
 };
 
