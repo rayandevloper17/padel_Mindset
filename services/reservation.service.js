@@ -1,5 +1,6 @@
 import { addNotification } from '../utils/notificationBus.js';
 import { generateReservationCoder } from '../utils/codeGenerator.js';
+import ratingService from './rating.service.js';
 import { Op } from 'sequelize';
 
 /**
@@ -463,6 +464,92 @@ export default function ReservationService(models) {
   // ════════════════════════════════════════════════════════════════════════════
   // MAIN: Create Reservation with Smart Capacity & Race Condition Protection
   // ════════════════════════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════════════════════════
+  // RATING: Update player ratings after match confirmation
+  // ════════════════════════════════════════════════════════════════════════════
+  const updatePlayerRatings = async (reservationId) => {
+    try {
+      console.log(`[RatingService] 🏁 Starting rating updates for reservation ${reservationId}`);
+
+      const reservation = await models.reservation.findByPk(reservationId, {
+        include: [{
+          model: models.participant,
+          as: 'participants',
+          include: [{
+            model: models.utilisateur,
+            as: 'utilisateur'
+          }]
+        }]
+      });
+
+      if (!reservation) {
+        console.error(`[RatingService] Reservation ${reservationId} not found`);
+        return;
+      }
+
+      const participants = reservation.participants || [];
+      if (participants.length < 4) {
+        console.warn(`[RatingService] Match ${reservationId} has fewer than ${participants.length}/4 participants. Rating calculation skipped.`);
+        return;
+      }
+
+      // 1. Map participants to teams (0,1 vs 2,3)
+      const pMap = {};
+      participants.forEach(p => {
+        if (p.team !== null && p.team !== undefined) {
+          pMap[p.team] = p;
+        }
+      });
+
+      const a1 = pMap[0];
+      const a2 = pMap[1];
+      const b1 = pMap[2];
+      const b2 = pMap[3];
+
+      if (!a1 || !a2 || !b1 || !b2) {
+        console.warn(`[RatingService] Missing participants in team slots (found: ${Object.keys(pMap).join(',')}). Rating update aborted.`);
+        return;
+      }
+
+      // 2. Calculate games won by each team
+      const teamAGames = (reservation.Set1A || 0) + (reservation.Set2A || 0) + (reservation.Set3A || 0);
+      const teamBGames = (reservation.Set1B || 0) + (reservation.Set2B || 0) + (reservation.Set3B || 0);
+
+      const players = [a1, a2, b1, b2];
+
+      // 3. Update each player
+      for (let i = 0; i < 4; i++) {
+        const player = players[i];
+        const user = player.utilisateur;
+        if (!user) continue;
+
+        const isTeamA = i < 2;
+        const teammate = isTeamA ? (i === 0 ? a2 : a1) : (i === 2 ? b2 : b1);
+        const opponents = isTeamA ? [b1, b2] : [a1, a2];
+
+        const matchData = {
+          playerRating: Number(user.note) || 0.5,
+          teammateRating: Number(teammate.utilisateur?.note) || 0.5,
+          adversary1Rating: Number(opponents[0].utilisateur?.note) || 0.5,
+          adversary2Rating: Number(opponents[1].utilisateur?.note) || 0.5,
+          pointsScored: isTeamA ? teamAGames : teamBGames,
+          teammateReliability: (Number(teammate.utilisateur?.fiability) || 50) / 100,
+          adversary1Reliability: (Number(opponents[0].utilisateur?.fiability) || 50) / 100,
+          adversary2Reliability: (Number(opponents[1].utilisateur?.fiability) || 50) / 100
+        };
+
+        const newRating = ratingService.calculateNewRating(matchData);
+
+        // Update user rating in DB
+        await user.update({ note: newRating });
+        console.log(`[RatingService] ✅ User ${user.id} (${user.nom}) rating updated: ${matchData.playerRating.toFixed(2)} -> ${newRating.toFixed(2)}`);
+      }
+
+    } catch (error) {
+      console.error('[RatingService] ❌ Failed to update player ratings:', error);
+    }
+  };
+
   const create = async (data) => {
     const t = await models.sequelize.transaction({
       isolationLevel: models.Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
@@ -1555,6 +1642,12 @@ export default function ReservationService(models) {
 
       await t.commit();
 
+      // Trigger rating calculation if match is confirmed
+      if (newStatus === 1) {
+        // Run in background to not block response
+        updatePlayerRatings(reservationId).catch(err => console.error('[RatingService] Background update error:', err));
+      }
+
       // ─────────────────────────────────────────────────────────────────────────────
       // NOTIFICATIONS
       // ─────────────────────────────────────────────────────────────────────────────
@@ -1642,6 +1735,9 @@ export default function ReservationService(models) {
           score_status: 2, // 2 = CONFIRMED_AUTO
           last_score_update: new Date()
         }, { transaction: t });
+        
+        // Trigger rating calculation for each confirmed reservation
+        updatePlayerRatings(r.id).catch(err => console.error('[RatingService] Background update error (auto):', err));
       }
 
       await t.commit();
