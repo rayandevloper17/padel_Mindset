@@ -511,13 +511,72 @@ export default function ReservationService(models) {
         return;
       }
 
-      // 2. Calculate games won by each team
+      const ratingA1 = Number(a1.utilisateur?.note) || 0.5;
+      const ratingA2 = Number(a2.utilisateur?.note) || 0.5;
+      const ratingB1 = Number(b1.utilisateur?.note) || 0.5;
+      const ratingB2 = Number(b2.utilisateur?.note) || 0.5;
+
+      const teamARatingSum = ratingA1 + ratingA2;
+      const teamBRatingSum = ratingB1 + ratingB2;
+
+      const winnerTeam = reservation.teamwin;
+
+      let winnerTeamRatingSum = null;
+      let loserTeamRatingSum = null;
+
+      if (winnerTeam === 1) {
+        winnerTeamRatingSum = teamARatingSum;
+        loserTeamRatingSum = teamBRatingSum;
+      } else if (winnerTeam === 2) {
+        winnerTeamRatingSum = teamBRatingSum;
+        loserTeamRatingSum = teamARatingSum;
+      }
+
       const teamAGames = (reservation.Set1A || 0) + (reservation.Set2A || 0) + (reservation.Set3A || 0);
       const teamBGames = (reservation.Set1B || 0) + (reservation.Set2B || 0) + (reservation.Set3B || 0);
 
+      const setsForFactor = [];
+
+      setsForFactor.push({
+        a: reservation.Set1A || 0,
+        b: reservation.Set1B || 0
+      });
+
+      setsForFactor.push({
+        a: reservation.Set2A || 0,
+        b: reservation.Set2B || 0
+      });
+
+      if (reservation.Set3A != null || reservation.Set3B != null) {
+        setsForFactor.push({
+          a: reservation.Set3A || 0,
+          b: reservation.Set3B || 0
+        });
+      }
+
+      let winsA = 0;
+      let winsB = 0;
+
+      for (const s of setsForFactor) {
+        if (s.a > s.b) {
+          winsA++;
+        } else if (s.b > s.a) {
+          winsB++;
+        }
+      }
+
+      const isSuperTieBreakMatch = reservation.supertiebreak === 1;
+
+      let resultFactor = 1;
+
+      if ((winsA === 2 && winsB === 0) || (winsB === 2 && winsA === 0)) {
+        resultFactor = 1;
+      } else if ((winsA === 2 && winsB === 1) || (winsB === 2 && winsA === 1)) {
+        resultFactor = isSuperTieBreakMatch ? 0.5 : 0.75;
+      }
+
       const players = [a1, a2, b1, b2];
 
-      // 3. Update each player
       for (let i = 0; i < 4; i++) {
         const player = players[i];
         const user = player.utilisateur;
@@ -527,22 +586,38 @@ export default function ReservationService(models) {
         const teammate = isTeamA ? (i === 0 ? a2 : a1) : (i === 2 ? b2 : b1);
         const opponents = isTeamA ? [b1, b2] : [a1, a2];
 
+        const isWinner = (winnerTeam === 1 && isTeamA) || (winnerTeam === 2 && !isTeamA);
+
         const matchData = {
-          playerRating: Number(user.note) || 0.5,
-          teammateRating: Number(teammate.utilisateur?.note) || 0.5,
-          adversary1Rating: Number(opponents[0].utilisateur?.note) || 0.5,
-          adversary2Rating: Number(opponents[1].utilisateur?.note) || 0.5,
-          pointsScored: isTeamA ? teamAGames : teamBGames,
+          playerRating: isTeamA ? (i === 0 ? ratingA1 : ratingA2) : (i === 2 ? ratingB1 : ratingB2),
+          teammateRating: isTeamA ? (i === 0 ? ratingA2 : ratingA1) : (i === 2 ? ratingB2 : ratingB1),
+          adversary1Rating: isTeamA ? ratingB1 : ratingA1,
+          adversary2Rating: isTeamA ? ratingB2 : ratingA2,
+          pointsConceded: isTeamA ? teamBGames : teamAGames,
           teammateReliability: (Number(teammate.utilisateur?.fiability) || 50) / 100,
           adversary1Reliability: (Number(opponents[0].utilisateur?.fiability) || 50) / 100,
-          adversary2Reliability: (Number(opponents[1].utilisateur?.fiability) || 50) / 100
+          adversary2Reliability: (Number(opponents[1].utilisateur?.fiability) || 50) / 100,
+          winnerTeamRatingSum,
+          loserTeamRatingSum,
+          isWinner,
+          resultFactor
         };
 
         const newRating = ratingService.calculateNewRating(matchData);
 
-        // Update user rating in DB
-        await user.update({ note: newRating });
-        console.log(`[RatingService] ✅ User ${user.id} (${user.nom}) rating updated: ${matchData.playerRating.toFixed(2)} -> ${newRating.toFixed(2)}`);
+        // Calculate new reliability
+        // Add player's own reliability to matchData for calculation
+        matchData.playerReliability = (Number(user.fiability) || 50) / 100;
+
+        const newReliabilityNormalized = ratingService.calculateNewReliability(matchData);
+        const newReliability = Math.round(newReliabilityNormalized * 100);
+
+        // Update user rating and reliability in DB
+        await user.update({
+          note: newRating,
+          fiability: newReliability
+        });
+        console.log(`[RatingService] ✅ User ${user.id} (${user.nom}) updated: Rating ${matchData.playerRating.toFixed(2)} -> ${newRating.toFixed(2)}, Reliability ${(matchData.playerReliability * 100).toFixed(1)}% -> ${newReliability}%`);
       }
 
     } catch (error) {
@@ -881,15 +956,15 @@ export default function ReservationService(models) {
       // ══════════════════════════════════════════════════════════════════════
       // STEP 9: Create the reservation
       // ══════════════════════════════════════════════════════════════════════
-      
+
       // Generate a truly unique coder in the backend
       let uniqueCoder;
       let isUnique = false;
       let attempts = 0;
-      
+
       while (!isUnique && attempts < 10) {
         uniqueCoder = generateReservationCoder();
-        const existing = await models.reservation.findOne({ 
+        const existing = await models.reservation.findOne({
           where: { coder: uniqueCoder },
           transaction: t
         });
@@ -1735,7 +1810,7 @@ export default function ReservationService(models) {
           score_status: 2, // 2 = CONFIRMED_AUTO
           last_score_update: new Date()
         }, { transaction: t });
-        
+
         // Trigger rating calculation for each confirmed reservation
         updatePlayerRatings(r.id).catch(err => console.error('[RatingService] Background update error (auto):', err));
       }

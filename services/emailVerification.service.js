@@ -77,11 +77,21 @@ export default function VerificationEmailService(models, transporter) {
   const verify = async (id_utilisateur, token) => {
     const record = await models.verification_email.findOne({ where: { id_utilisateur, token } });
     if (!record) throw new Error('Invalid token');
+
+    // ✅ Verification successful: Delete the record
+    await record.destroy();
+
     return { message: 'Token verified successfully' };
+  };
+
+  const isPending = async (id_utilisateur) => {
+    const count = await models.verification_email.count({ where: { id_utilisateur } });
+    return count > 0;
   };
 
   return {
     create,
     verify,
+    isPending,
   };
 }
