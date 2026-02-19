@@ -102,6 +102,11 @@ export default function (sequelize) {
       type: DataTypes.INTEGER,
       allowNull: true,
       defaultValue: 20
+    },
+    isVerified: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
     }
   }, {
     sequelize,

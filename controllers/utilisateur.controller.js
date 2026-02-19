@@ -103,9 +103,6 @@ export default (models) => {
           // Service creates record first. So high chance they are unverified.
         }
 
-        // Re-check verification status to be accurate
-        const pendingVerification = await isVerificationPending(user.id);
-
         // Return user data without sensitive information
         res.status(201).json({
           id: user.id,
@@ -115,7 +112,7 @@ export default (models) => {
           mainprefere: user.mainprefere,
           displayQ: user.displayQ,
           fiability: user.fiability,
-          isVerified: !pendingVerification
+          isVerified: user.isVerified   // ✅ Read directly from DB column
         });
       } catch (err) {
         next(err);
@@ -160,9 +157,6 @@ export default (models) => {
         const updated = [...existing, refreshToken];
         await user.update({ refresh_tokens: JSON.stringify(updated) });
 
-        // Check verification status
-        const pendingVerification = await isVerificationPending(user.id);
-
         res.json({
           accessToken,
           refreshToken,
@@ -173,7 +167,7 @@ export default (models) => {
             email: user.email,
             nom: user.nom,
             prenom: user.prenom,
-            isVerified: !pendingVerification
+            isVerified: user.isVerified   // ✅ Read directly from DB column
           }
         });
       } catch (err) {

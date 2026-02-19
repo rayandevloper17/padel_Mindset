@@ -6,28 +6,28 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const validateCreateUser = (req, res, next) => {
   console.log('🔍 Validation - Request body:', req.body);
   const { nom, prenom, email, mot_de_passe, numero_telephone, telephone, mainprefere } = req.body;
-  
+
   // Check required fields
   if (!nom || !email || !mot_de_passe) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Champs requis manquants',
-      message: 'nom, email et mot_de_passe sont requis' 
+      message: 'nom, email et mot_de_passe sont requis'
     });
   }
 
   // Validate email format
   if (!emailRegex.test(email)) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Format email invalide',
-      message: 'Veuillez fournir un email valide' 
+      message: 'Veuillez fournir un email valide'
     });
   }
 
   // Validate password strength
   if (mot_de_passe.length < 8) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Mot de passe trop faible',
-      message: 'Le mot de passe doit contenir au moins 8 caractères' 
+      message: 'Le mot de passe doit contenir au moins 8 caractères'
     });
   }
 
@@ -38,26 +38,26 @@ export const validateCreateUser = (req, res, next) => {
   const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(mot_de_passe);
 
   if (!hasUpperCase || !hasLowerCase || !hasNumbers) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Mot de passe trop faible',
-      message: 'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre' 
+      message: 'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre'
     });
   }
 
   // Validate name (no numbers, special characters)
   const nameRegex = /^[a-zA-ZÀ-ÿ\s'-]+$/;
   if (!nameRegex.test(nom)) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Format nom invalide',
-      message: 'Le nom ne peut contenir que des lettres, espaces, apostrophes et tirets' 
+      message: 'Le nom ne peut contenir que des lettres, espaces, apostrophes et tirets'
     });
   }
 
   // Validate prenom if provided
   if (prenom && !nameRegex.test(prenom)) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Format prénom invalide',
-      message: 'Le prénom ne peut contenir que des lettres, espaces, apostrophes et tirets' 
+      message: 'Le prénom ne peut contenir que des lettres, espaces, apostrophes et tirets'
     });
   }
 
@@ -66,9 +66,9 @@ export const validateCreateUser = (req, res, next) => {
   if (phoneNumber) {
     const phoneRegex = /^(\+213|0)[5-7][0-9]{8}$/; // Algerian phone number format
     if (!phoneRegex.test(phoneNumber.replace(/\s/g, ''))) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Format téléphone invalide',
-        message: 'Veuillez fournir un numéro de téléphone algérien valide' 
+        message: 'Veuillez fournir un numéro de téléphone algérien valide'
       });
     }
   }
@@ -97,18 +97,18 @@ export const validateUpdateUser = (req, res, next) => {
 
   // Validate email format if provided
   if (email && !emailRegex.test(email)) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Format email invalide',
-      message: 'Veuillez fournir un email valide' 
+      message: 'Veuillez fournir un email valide'
     });
   }
 
   // Validate password if provided
   if (mot_de_passe) {
     if (mot_de_passe.length < 8) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Mot de passe trop faible',
-        message: 'Le mot de passe doit contenir au moins 8 caractères' 
+        message: 'Le mot de passe doit contenir au moins 8 caractères'
       });
     }
 
@@ -118,9 +118,9 @@ export const validateUpdateUser = (req, res, next) => {
     const hasNumbers = /\d/.test(mot_de_passe);
 
     if (!hasUpperCase || !hasLowerCase || !hasNumbers) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Mot de passe trop faible',
-        message: 'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre' 
+        message: 'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre'
       });
     }
   }
@@ -128,16 +128,16 @@ export const validateUpdateUser = (req, res, next) => {
   // Validate name format if provided
   const nameRegex = /^[a-zA-ZÀ-ÿ\s'-]+$/;
   if (nom && !nameRegex.test(nom)) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Format nom invalide',
-      message: 'Le nom ne peut contenir que des lettres, espaces, apostrophes et tirets' 
+      message: 'Le nom ne peut contenir que des lettres, espaces, apostrophes et tirets'
     });
   }
 
   if (prenom && !nameRegex.test(prenom)) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Format prénom invalide',
-      message: 'Le prénom ne peut contenir que des lettres, espaces, apostrophes et tirets' 
+      message: 'Le prénom ne peut contenir que des lettres, espaces, apostrophes et tirets'
     });
   }
 
@@ -145,11 +145,13 @@ export const validateUpdateUser = (req, res, next) => {
   if (telephone) {
     const phoneRegex = /^(\+213|0)[5-7][0-9]{8}$/;
     if (!phoneRegex.test(telephone.replace(/\s/g, ''))) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Format téléphone invalide',
-        message: 'Veuillez fournir un numéro de téléphone algérien valide' 
+        message: 'Veuillez fournir un numéro de téléphone algérien valide'
       });
     }
+    // Map telephone to numero_telephone for DB update
+    req.body.numero_telephone = telephone;
   }
 
   // Validate rating questionnaire flag if provided (must be 0 or 1)
@@ -201,16 +203,16 @@ export const validateLogin = (req, res, next) => {
   const { email, mot_de_passe } = req.body;
 
   if (!email || !mot_de_passe) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Champs requis manquants',
-      message: 'Email et mot de passe sont requis' 
+      message: 'Email et mot de passe sont requis'
     });
   }
 
   if (!emailRegex.test(email)) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Format email invalide',
-      message: 'Veuillez fournir un email valide' 
+      message: 'Veuillez fournir un email valide'
     });
   }
 
@@ -220,47 +222,47 @@ export const validateLogin = (req, res, next) => {
 // Generic validation for IDs
 export const validateId = (req, res, next) => {
   const id = parseInt(req.params.id);
-  
+
   if (!id || id <= 0) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'ID invalide',
-      message: 'Un ID numérique valide est requis' 
+      message: 'Un ID numérique valide est requis'
     });
   }
-  
+
   next();
 };
 export const validateCreditUpdate = (req, res, next) => {
   const { userId, creditAmount, creditType } = req.body;
-  
+
   // Validate userId
   if (!userId || !Number.isInteger(Number(userId)) || userId <= 0) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'ID invalide user',
-      message: 'Un ID numérique valide est requis' 
+      message: 'Un ID numérique valide est requis'
     });
   }
-  
+
   // Validate creditAmount
   if (!creditAmount || creditAmount <= 0) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Montant invalide',
-      message: 'Le montant doit être supérieur à zéro' 
+      message: 'Le montant doit être supérieur à zéro'
     });
   }
-  
+
   // Validate creditType: allow unified balance or default to balance when mi ssing
   if (creditType && !['credit_balance'].includes(creditType)) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Type de crédit invalide',
-      message: 'Le type de crédit doit être "credit_balance"' 
+      message: 'Le type de crédit doit être "credit_balance"'
     });
   }
   // Default to unified balance if not provided
   if (!creditType) {
     req.body.creditType = 'credit_balance';
   }
-  
+
   next();
 };
 // Sanitize input data
@@ -273,6 +275,6 @@ export const sanitizeInput = (req, res, next) => {
       }
     });
   }
-  
+
   next();
 };

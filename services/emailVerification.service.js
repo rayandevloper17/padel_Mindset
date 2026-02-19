@@ -78,10 +78,16 @@ export default function VerificationEmailService(models, transporter) {
     const record = await models.verification_email.findOne({ where: { id_utilisateur, token } });
     if (!record) throw new Error('Invalid token');
 
-    // ✅ Verification successful: Delete the record
+    // ✅ Verification successful: Delete the verification record
     await record.destroy();
 
-    return { message: 'Token verified successfully' };
+    // ✅ Mark the user's account as verified in the DB
+    const user = await models.utilisateur.findByPk(id_utilisateur);
+    if (user) {
+      await user.update({ isVerified: true });
+    }
+
+    return { message: 'Token verified successfully', isVerified: true };
   };
 
   const isPending = async (id_utilisateur) => {
