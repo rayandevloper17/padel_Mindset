@@ -285,6 +285,14 @@ export default (models) => {
 
         // Handle password hashing if password is being updated
         if (req.body.mot_de_passe) {
+          // If current_password is provided, verify it first
+          if (req.body.current_password) {
+            const isMatch = await bcrypt.compare(req.body.current_password, user.mot_de_passe);
+            if (!isMatch) {
+              return res.status(401).json({ message: 'Mot de passe actuel incorrect' });
+            }
+            delete req.body.current_password;
+          }
           req.body.mot_de_passe = await bcrypt.hash(req.body.mot_de_passe, 10);
         }
 
