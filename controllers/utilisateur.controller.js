@@ -1,16 +1,6 @@
 // controllers/utilisateur.controller.js
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import initModels from '../models/init-models.js';
-import VerificationEmailService from '../services/emailVerification.service.js';
-import nodemailer from 'nodemailer'; // Needed to init service, or can we get from app context? 
-// Actually, EmailVerificationService needs (models, transporter).
-// We should probably instantiate it here or pass it in. 
-// For simplicity, let's instantiate it if we can, or just check the DB directly since we have models.
-// "isPending" is just a count query. We can do it inline or replicate the logic to avoiding circular deps or complex setup.
-// Let's implement the logic inline for now to be safe and quick, avoiding service instantiation complexity here.
-
-import initModels from '../models/init-models.js';
 import VerificationEmailService from '../services/emailVerification.service.js';
 import transporter from '../utils/sendEmail.js';
 
