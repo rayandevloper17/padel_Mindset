@@ -79,7 +79,8 @@ export default (models) => {
         const user = await utilisateur.create({
           ...req.body,
           mot_de_passe: hashedPassword,
-          displayQ: displayQ !== undefined ? displayQ : 0 // Ensure displayQ is captured
+          displayQ: displayQ !== undefined ? displayQ : 0, // Ensure displayQ is captured
+          isVerified: false
         });
 
 
